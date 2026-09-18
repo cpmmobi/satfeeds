@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Satfeeds 推流记录</title>
+  <style>
+    :root {
+      --bg: #f4f2ee;
+      --paper: #fffdf8;
+      --ink: #1c1917;
+      --muted: #78716c;
+      --line: #e7e0d6;
+      --accent: #b45309;
+      --danger: #b42318;
+      --ok: #3f6212;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.5 "PingFang SC", "Noto Sans SC", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    header {
+      padding: 28px 32px 12px;
+      max-width: 1360px;
+      margin: 0 auto;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      font-weight: 650;
+    }
+    .sub { color: var(--muted); }
+    .form-note {
+      margin: -8px 0 16px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .panel {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 0 32px 40px;
+    }
+    form {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: end;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      padding: 16px;
+      margin: 16px 0 20px;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    input[type="text"].dt {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 8px 10px;
+      min-width: 210px;
+      font: inherit;
+      font-variant-numeric: tabular-nums;
+    }
+    input[type="text"].dt:focus {
+      outline: 2px solid #d6d3d1;
+      outline-offset: 1px;
+    }
+    .quick {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-left: auto;
+      padding-bottom: 2px;
+    }
+    .quick-label {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .quick button {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      height: 32px;
+      padding: 0 10px;
+      font-size: 12px;
+    }
+    .quick button:hover { border-color: var(--ink); }
+    .quick button.active {
+      background: var(--ink);
+      color: #fff;
+    }
+    button {
+      border: 0;
+      background: var(--ink);
+      color: #fff;
+      padding: 9px 18px;
+      cursor: pointer;
+      font: inherit;
+      height: 38px;
+    }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .stat {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      padding: 14px 16px;
+    }
+    .stat-title {
+      display: block;
+      margin-bottom: 10px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .stat-metrics {
+      display: flex;
+      gap: 24px;
+    }
+    .stat-metrics div b {
+      display: block;
+      font-size: 22px;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-metrics div span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .stat.active {
+      border-color: var(--ink);
+      background: #fff;
+    }
+    button.stat {
+      text-align: left;
+      height: auto;
+      color: inherit;
+      background: var(--paper);
+      cursor: pointer;
+    }
+    button.stat:hover { border-color: var(--ink); }
+    .stat-billable { border-left: 4px solid #1d4ed8; }
+    .stat-critical { border-left: 4px solid #7f1d1d; }
+    .stat-ok { border-left: 4px solid #3f6212; }
+    .stat-warn { border-left: 4px solid #a16207; }
+    .err, .hint {
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+    }
+    .err { color: var(--danger); border-color: #f0b4ae; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      font-size: 13px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: middle;
+      font-variant-numeric: tabular-nums;
+    }
+    th {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+      background: #faf7f2;
+      position: sticky;
+      top: 0;
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .col-shot { width: 108px; padding-right: 8px; }
+    button.shot {
+      width: 96px;
+      height: 54px;
+      padding: 0;
+      color: inherit;
+      background: #ebe6de;
+      overflow: hidden;
+      display: block;
+      position: relative;
+    }
+    .shot img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .shot.empty {
+      cursor: default;
+    }
+    .shot.empty img { display: none; }
+    .shot.empty::after {
+      content: "无截图";
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .col-match { min-width: 200px; max-width: 260px; }
+    .match-name {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      font-weight: 600;
+      line-height: 1.35;
+    }
+    .sport {
+      flex: none;
+      font-size: 11px;
+      font-weight: 650;
+      color: #57534e;
+      background: #efe8de;
+      padding: 0 6px;
+      white-space: nowrap;
+    }
+    .id {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 11px;
+      word-break: break-all;
+      line-height: 1.35;
+    }
+    .pair {
+      display: grid;
+      grid-template-columns: 2em 1fr;
+      gap: 6px;
+      align-items: start;
+      line-height: 1.35;
+    }
+    .pair + .pair { margin-top: 6px; }
+    .pair span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .pair b {
+      font-weight: 500;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    tr.sev-critical td { background: #f4d0cc; }
+    tr.sev-critical td:first-child { border-left: 4px solid #7f1d1d; }
+    tr.sev-warn td { background: #f8e7b8; }
+    tr.sev-warn td:first-child { border-left: 4px solid #a16207; }
+    tr.sev-ok td { background: #e4edd6; }
+    tr.sev-ok td:first-child { border-left: 4px solid #3f6212; }
+    .tag {
+      display: inline-block;
+      padding: 1px 7px;
+      font-size: 11px;
+      font-weight: 650;
+      line-height: 1.5;
+      white-space: nowrap;
+    }
+    .tag-critical { background: #7f1d1d; color: #fff; }
+    .tag-warn { background: #ca8a04; color: #1c1917; }
+    .tag-ok { background: #3f6212; color: #fff; }
+    .count-critical { color: #7f1d1d; font-weight: 700; }
+    .count-warn { color: #a16207; font-weight: 700; }
+    .count-ok { color: #3f6212; font-weight: 700; }
+    .reason {
+      color: #7f1d1d;
+      font-size: 12px;
+      font-weight: 650;
+      max-width: 160px;
+      line-height: 1.4;
+    }
+    .ip {
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    button.count {
+      background: none;
+      color: inherit;
+      height: auto;
+      padding: 0;
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    button.count:hover { opacity: 0.75; }
+    .shot-dialog {
+      width: min(960px, 100%);
+      background: #111;
+      padding: 0;
+    }
+    .shot-dialog img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(28, 25, 23, 0.45);
+      display: none;
+      align-items: start;
+      justify-content: center;
+      padding: 48px 16px;
+      overflow: auto;
+      z-index: 20;
+    }
+    .modal.open { display: flex; }
+    .dialog {
+      width: min(920px, 100%);
+      background: var(--paper);
+      border: 1px solid var(--line);
+      padding: 20px 22px 16px;
+    }
+    .dialog h2 {
+      margin: 0 0 4px;
+      font-size: 16px;
+      font-weight: 650;
+      word-break: break-all;
+    }
+    .dialog-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 14px;
+    }
+    .close {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      height: 32px;
+      padding: 0 12px;
+    }
+    footer { color: var(--muted); font-size: 12px; margin-top: 14px; }
+    @media (max-width: 1100px) {
+      .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 900px) {
+      .stats { grid-template-columns: 1fr 1fr; }
+      header, .panel { padding-left: 16px; padding-right: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Satfeeds 推流记录</h1>
+    <div class="sub">按开始推流时间筛选 · 一条流一行 · 时间均为北京时间 · 实际可查近 20 天</div>
+  </header>
+  <div class="panel">
+    <form id="form">
+      <label>开始时间
+        <input id="start" class="dt" type="text" required autocomplete="off" spellcheck="false" placeholder="2026-09-18 00:00:00" />
+      </label>
+      <label>结束时间
+        <input id="end" class="dt" type="text" required autocomplete="off" spellcheck="false" placeholder="2026-09-18 16:36:00" />
+      </label>
+      <button id="submit" type="submit">查询</button>
+      <div class="quick" id="quick">
+        <span class="quick-label">快捷</span>
+        <button type="button" data-range="3d">最近3天</button>
+        <button type="button" data-range="7d">最近7天</button>
+        <button type="button" data-range="10d">最近10天</button>
+        <button type="button" data-range="thisWeek">本周</button>
+        <button type="button" data-range="lastWeek">上周</button>
+      </div>
+    </form>
+    <div class="form-note">查询限制：只能查近 20 天，单次跨度不超过 20 天，每页最多 3000 条（本页会自动翻页，并控制在 3 次/秒以内）。超出范围会自动收回到可查区间。</div>
+    <div id="message"></div>
+    <div id="stats" class="stats" hidden></div>
+    <div id="tableWrap"></div>
+    <footer>断流只统计开赛前 15 分钟到完赛之间的掉线。完赛时间缺失或明显异常时按开赛后 110 分钟计算。断流超过 3 次，或赛中单次中断超过 1 分钟为异常；1–3 次且中断不超过 1 分钟为警告；0 次为未断流。可结算流 = 稳定流 + 警告流，异常流不结算。无开赛时间的比赛无法按赛中统计。</footer>
+  </div>
+  <div id="modal" class="modal">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+      <div class="dialog-head">
+        <div>
+          <h2 id="dialogTitle"></h2>
+          <div class="sub" id="dialogSub"></div>
+        </div>
+        <button type="button" class="close" id="closeModal">关闭</button>
+      </div>
+      <div id="dialogBody"></div>
+    </div>
+  </div>
+  <div id="shotModal" class="modal">
+    <div class="shot-dialog">
+      <img id="shotFull" alt="流截图" />
+    </div>
+  </div>
+  <script>
+    const LIMITS = { historyDays: 20, spanDays: 20, pageSize: 3000 };
+    const pad = (n) => String(n).padStart(2, "0");
+    const formatDateTime = (d) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const toApiValue = (d) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0);
+    const endOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59);
+    const addDays = (d, n) => {
+      const next = new Date(d);
+      next.setDate(next.getDate() + n);
+      return next;
+    };
+    const mondayOf = (d) => {
+      const start = startOfDay(d);
+      const day = start.getDay();
+      start.setDate(start.getDate() + (day === 0 ? -6 : 1 - day));
+      return start;
+    };
+    const parseDateTime = (value) => {
+      const text = String(value || "").trim().replace(/\//g, "-").replace("T", " ").replace(/\s+/g, " ");
+      const match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ ]+(\d{1,2})(?::(\d{1,2})(?::(\d{1,2}))?)?)?$/);
+      if (!match) return null;
+      const dt = new Date(
+        Number(match[1]),
+        Number(match[2]) - 1,
+        Number(match[3]),
+        Number(match[4] || 0),
+        Number(match[5] || 0),
+        Number(match[6] || 0)
+      );
+      return Number.isNaN(dt.getTime()) ? null : dt;
+    };
+    const startInput = document.getElementById("start");
+    const endInput = document.getElementById("end");
+    const quick = document.getElementById("quick");
+    let activeRange = "7d";
+
+    const bounds = () => {
+      const now = new Date();
+      const earliest = new Date(now.getTime() - LIMITS.historyDays * 24 * 3600 * 1000 + 60 * 1000);
+      return { now, earliest };
+    };
+
+    const setActiveRange = (key) => {
+      activeRange = key;
+      quick.querySelectorAll("button").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.range === key);
+      });
+    };
+
+    const rangeFor = (key) => {
+      const now = new Date();
+      if (key === "3d") return { start: startOfDay(addDays(now, -3)), end: now };
+      if (key === "7d") return { start: startOfDay(addDays(now, -7)), end: now };
+      if (key === "10d") return { start: startOfDay(addDays(now, -10)), end: now };
+      if (key === "thisWeek") return { start: mondayOf(now), end: now };
+      if (key === "lastWeek") {
+        const thisMonday = mondayOf(now);
+        const lastMonday = addDays(thisMonday, -7);
+        return { start: lastMonday, end: endOfDay(addDays(lastMonday, 6)) };
+      }
+      return null;
+    };
+
+    const writeInputs = (startAt, endAt) => {
+      startInput.value = formatDateTime(startAt);
+      endInput.value = formatDateTime(endAt);
+    };
+
+    const clampInputs = () => {
+      const { now, earliest } = bounds();
+      let startAt = parseDateTime(startInput.value);
+      let endAt = parseDateTime(endInput.value);
+      const notes = [];
+      if (!startAt || !endAt) return notes;
+      if (endAt > now) {
+        endAt = now;
+        notes.push("结束时间不能晚于现在");
+      }
+      if (startAt < earliest) {
+        startAt = earliest;
+        notes.push("只能查询近 20 天");
+      }
+      const maxSpan = LIMITS.spanDays * 24 * 3600 * 1000 - 1000;
+      if (endAt - startAt > maxSpan) {
+        startAt = new Date(Math.max(endAt.getTime() - maxSpan, earliest.getTime()));
+        notes.push("单次跨度不能超过 20 天");
+      }
+      if (startAt >= endAt) {
+        startAt = new Date(endAt.getTime() - 60 * 60 * 1000);
+        if (startAt < earliest) startAt = earliest;
+      }
+      writeInputs(startAt, endAt);
+      return notes;
+    };
+
+    const applyRange = (key) => {
+      const range = rangeFor(key);
+      if (!range) return;
+      writeInputs(range.start, range.end);
+      setActiveRange(key);
+      clampInputs();
+    };
+
+    applyRange("7d");
+    startInput.addEventListener("blur", () => {
+      const parsed = parseDateTime(startInput.value);
+      if (parsed) startInput.value = formatDateTime(parsed);
+      setActiveRange("");
+    });
+    endInput.addEventListener("blur", () => {
+      const parsed = parseDateTime(endInput.value);
+      if (parsed) endInput.value = formatDateTime(parsed);
+      setActiveRange("");
+    });
+    quick.querySelectorAll("button").forEach((btn) => {
+      btn.addEventListener("click", () => applyRange(btn.dataset.range));
+    });
+
+    const form = document.getElementById("form");
+    const message = document.getElementById("message");
+    const stats = document.getElementById("stats");
+    const tableWrap = document.getElementById("tableWrap");
+    const submit = document.getElementById("submit");
+    const modal = document.getElementById("modal");
+    const dialogTitle = document.getElementById("dialogTitle");
+    const dialogSub = document.getElementById("dialogSub");
+    const dialogBody = document.getElementById("dialogBody");
+    let lastStreams = [];
+    let view = "all";
+
+    const visibleStreams = () => {
+      if (view === "critical") return lastStreams.filter((s) => s.severity === "critical");
+      if (view === "warn") return lastStreams.filter((s) => s.severity === "warn");
+      if (view === "ok") return lastStreams.filter((s) => s.severity === "ok");
+      if (view === "billable") return lastStreams.filter((s) => s.severity === "ok" || s.severity === "warn");
+      return lastStreams;
+    };
+
+    const rowSeverity = (s) => s.severity || "";
+    const severityLabel = { critical: "异常", warn: "警告", ok: "未断流" };
+    const shotUrl = (id) => `https://slaimages.oss-ap-southeast-1.aliyuncs.com/sla/${encodeURIComponent(id)}.jpg`;
+    const pair = (label, value, extra = "") =>
+      `<div class="pair"><span>${label}</span><b>${esc(value || "—")}${extra}</b></div>`;
+
+    const renderTable = () => {
+      const rowsData = visibleStreams();
+      if (!lastStreams.length) {
+        tableWrap.innerHTML = `<div class="hint">这段时间没有 Satfeeds 推流记录。</div>`;
+        return;
+      }
+      if (!rowsData.length) {
+        tableWrap.innerHTML = `<div class="hint">当前视图没有符合条件的流。</div>`;
+        return;
+      }
+      const rows = rowsData.map((s) => {
+        const sev = rowSeverity(s);
+        const tag = sev ? `<span class="tag tag-${sev}">${severityLabel[sev]}</span>` : `<span class="tag">未知</span>`;
+        const discText = s.disconnects == null ? "—" : s.disconnects;
+        const reason = s.issue_reason ? `<span class="reason">${esc(s.issue_reason)}</span>` : "—";
+        const assumed = s.match_end_assumed ? `<span class="tag">按110分钟</span>` : "";
+        const thumb = shotUrl(s.stream_id);
+        return `
+          <tr class="${sev ? `sev-${sev}` : ""}">
+            <td class="col-shot">
+              <button type="button" class="shot" data-shot="${esc(thumb)}" data-id="${esc(s.stream_id)}">
+                <img src="${esc(thumb)}" alt="" loading="lazy" />
+              </button>
+            </td>
+            <td class="col-match">
+              <div class="match-name">${s.sport ? `<span class="sport">${esc(s.sport)}</span>` : ""}<span>${esc(s.match_name || "未知比赛")}</span></div>
+              <div class="id">${esc(s.stream_id)}</div>
+            </td>
+            <td>
+              ${pair("开赛", s.match_start)}
+              ${pair("完赛", s.match_end && s.match_end !== "—" ? s.match_end : "—", assumed)}
+            </td>
+            <td>
+              ${pair("开始", s.start_time)}
+              ${pair("结束", s.end_time)}
+            </td>
+            <td>
+              <div class="status">
+                <button type="button" class="count ${sev ? `count-${sev}` : ""}" data-id="${esc(s.stream_id)}">${discText}</button>
+                ${tag}
+              </div>
+            </td>
+            <td>${reason}</td>
+            <td class="ip">${esc(s.publish_ip || "—")}</td>
+          </tr>
+        `;
+      }).join("");
+      tableWrap.innerHTML = `
+          <table>
+            <thead>
+              <tr>
+                <th>截图</th>
+                <th>比赛</th>
+                <th>比赛时间</th>
+                <th>推流时间</th>
+                <th>状态</th>
+                <th>异常原因</th>
+                <th>推流 IP</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      tableWrap.querySelectorAll("img").forEach((img) => {
+        img.addEventListener("error", () => {
+          const btn = img.closest(".shot");
+          if (btn) btn.classList.add("empty");
+        });
+      });
+      tableWrap.querySelectorAll("button.count").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const stream = lastStreams.find((item) => item.stream_id === btn.dataset.id);
+          if (stream) openModal(stream);
+        });
+      });
+      tableWrap.querySelectorAll("button.shot").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          if (btn.classList.contains("empty")) return;
+          openShot(btn.dataset.shot);
+        });
+      });
+    };
+
+    const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    }[ch]));
+
+    const closeModal = () => modal.classList.remove("open");
+    const shotModal = document.getElementById("shotModal");
+    const shotFull = document.getElementById("shotFull");
+    const closeShot = () => {
+      shotModal.classList.remove("open");
+      shotFull.removeAttribute("src");
+    };
+    const openShot = (url) => {
+      shotFull.src = url;
+      shotModal.classList.add("open");
+    };
+
+    const openModal = (stream) => {
+      dialogTitle.textContent = stream.match_name || stream.stream_id;
+      const windowEnd = stream.stat_window_end || stream.match_end || "—";
+      const endNote = stream.match_end_assumed ? "完赛时间未知，按开赛后110分钟" : "完赛";
+      const reasonText = stream.issue_reason ? ` · 异常原因：${stream.issue_reason}` : "";
+      dialogSub.textContent =
+        `${stream.sport ? stream.sport + " · " : ""}${stream.stream_id} · 统计窗口：开赛前15分钟至${endNote}（${stream.match_start || "—"} 至 ${windowEnd}）· 赛中断流 ${stream.disconnects == null ? "—" : stream.disconnects} 次${reasonText}`;
+      const rows = (stream.details || []).map((d) => `
+        <tr>
+          <td>${d.index}</td>
+          <td>${esc(d.start_time)}</td>
+          <td>${esc(d.end_time)}</td>
+          <td>${esc(d.duration)}</td>
+          <td>${esc(d.gap)}</td>
+          <td>${d.counted ? (d.trailing ? "赛中掉线未恢复" : "计入") : "—"}${d.long_interrupt ? "（超1分钟）" : ""}</td>
+          <td>${esc(d.ip)}</td>
+        </tr>
+      `).join("");
+      dialogBody.innerHTML = `
+        <p><img src="${esc(shotUrl(stream.stream_id))}" alt="" style="max-width:100%;height:auto;margin-bottom:12px;background:#ebe6de" /></p>
+        <table>
+          <thead>
+            <tr>
+              <th>段次</th>
+              <th>开始推流</th>
+              <th>结束推流</th>
+              <th>本段时长</th>
+              <th>距上一段间隔</th>
+              <th>赛中断流</th>
+              <th>推流 IP</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+      modal.classList.add("open");
+    };
+
+    document.getElementById("closeModal").addEventListener("click", closeModal);
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) closeModal();
+    });
+    shotModal.addEventListener("click", closeShot);
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (shotModal.classList.contains("open")) closeShot();
+      else closeModal();
+    });
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const clampNotes = clampInputs();
+      const startAt = parseDateTime(startInput.value);
+      const endAt = parseDateTime(endInput.value);
+      message.innerHTML = "";
+      stats.hidden = true;
+      tableWrap.innerHTML = "";
+      submit.disabled = true;
+      submit.textContent = "查询中…";
+      try {
+        if (!startAt || !endAt) throw new Error("请输入正确的时间，格式如 2026-09-18 16:36:00");
+        const params = new URLSearchParams({
+          start: toApiValue(startAt),
+          end: toApiValue(endAt),
+        });
+        const res = await fetch("/api/streams?" + params.toString());
+        const data = await res.json();
+        if (!res.ok) {
+          const detail = data.detail;
+          const text = typeof detail === "string" ? detail : (detail && detail[0] && detail[0].msg) || "查询失败";
+          throw new Error(text);
+        }
+        lastStreams = data.streams || [];
+        view = "all";
+        stats.hidden = false;
+        const summary = data.summary || {
+          all: { streams: lastStreams.length, sessions: 0 },
+          billable: { streams: 0, sessions: 0 },
+          critical: { streams: 0, sessions: 0 },
+          warn: { streams: 0, sessions: 0 },
+          ok: { streams: 0, sessions: 0 },
+        };
+        const card = (key, title, extraClass) => `
+          <button type="button" class="stat ${extraClass || ""} ${view === key ? "active" : ""}" data-view="${key}">
+            <span class="stat-title">${title}</span>
+            <div class="stat-metrics">
+              <div><b>${summary[key].streams}</b><span>流数量</span></div>
+              <div><b>${summary[key].sessions}</b><span>推流次数</span></div>
+            </div>
+          </button>
+        `;
+        stats.innerHTML =
+          card("all", "总推流", "stat-all") +
+          card("billable", "可结算流", "stat-billable") +
+          card("ok", "稳定流", "stat-ok") +
+          card("warn", "警告流", "stat-warn") +
+          card("critical", "异常流", "stat-critical");
+        stats.querySelectorAll("button.stat").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const next = btn.dataset.view;
+            view = view === next && next !== "all" ? "all" : next;
+            stats.querySelectorAll("button.stat").forEach((item) => {
+              item.classList.toggle("active", item.dataset.view === view);
+            });
+            renderTable();
+          });
+        });
+        const clip = (data.clip_notes || clampNotes || []).filter(Boolean);
+        const clipText = clip.length ? ` · ${clip.join("；")}` : "";
+        message.innerHTML = `<div class="hint">筛选范围：${data.start_time} 至 ${data.end_time}${clipText} · 断流超过3次或赛中单次中断超过1分钟记为异常；无完赛或完赛时间异常时按开赛后110分钟</div>`;
+        renderTable();
+      } catch (err) {
+        message.innerHTML = `<div class="err">${err.message}</div>`;
+      } finally {
+        submit.disabled = false;
+        submit.textContent = "查询";
+      }
+    });
+  </script>
+</body>
+</html>
