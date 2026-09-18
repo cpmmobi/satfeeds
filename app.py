@@ -27,7 +27,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parent
-load_dotenv(ROOT / ".env", override=True)
+# Vercel 注入的环境变量优先；本地才读 .env。override=True 会把空的 .env 盖掉线上密钥。
+if not os.getenv("VERCEL"):
+    load_dotenv(ROOT / ".env", override=True)
 
 TZ = ZoneInfo("Asia/Shanghai")
 UTC = timezone.utc
@@ -543,21 +545,39 @@ def fmt_resolution(width: int | None, height: int | None) -> str | None:
     return None
 
 
+def test_auth_keys() -> tuple[str, str]:
+    push = os.getenv("TEST_PUSH_AUTH_KEY", "").strip()
+    play = os.getenv("TEST_PLAY_AUTH_KEY", "").strip()
+    if not push or not play:
+        missing = []
+        if not push:
+            missing.append("TEST_PUSH_AUTH_KEY")
+        if not play:
+            missing.append("TEST_PLAY_AUTH_KEY")
+        raise HTTPException(
+            status_code=500,
+            detail="未配置 " + "、".join(missing) + "。Vercel 改环境变量后需要重新部署才能生效。",
+        )
+    return push, play
+
+
 def build_test_stream(name: str) -> dict[str, Any]:
-    if not TEST_PUSH_KEY or not TEST_PLAY_KEY:
-        raise HTTPException(status_code=500, detail="未配置测试推流/播放鉴权密钥，请检查 .env")
+    push_key, play_key = test_auth_keys()
+    app_name = os.getenv("TEST_APP_NAME", TEST_APP_NAME).strip() or TEST_APP_NAME
+    push_domain = os.getenv("TEST_PUSH_DOMAIN", TEST_PUSH_DOMAIN).strip() or TEST_PUSH_DOMAIN
+    play_domain = os.getenv("TEST_PLAY_DOMAIN", TEST_PLAY_DOMAIN).strip() or TEST_PLAY_DOMAIN
     expire_ts = int(time.time()) + TEST_AUTH_HOURS * 3600
-    push_uri = f"/{TEST_APP_NAME}/{name}"
-    hls_uri = f"/{TEST_APP_NAME}/{name}.m3u8"
-    flv_uri = f"/{TEST_APP_NAME}/{name}.flv"
+    push_uri = f"/{app_name}/{name}"
+    hls_uri = f"/{app_name}/{name}.m3u8"
+    flv_uri = f"/{app_name}/{name}.flv"
     return {
         "stream_name": name,
-        "obs_server": f"rtmp://{TEST_PUSH_DOMAIN}/{TEST_APP_NAME}/",
-        "obs_key": f"{name}?auth_key={aliyun_auth_key(push_uri, TEST_PUSH_KEY, expire_ts)}",
-        "push_rtmp": signed_live_url(f"rtmp://{TEST_PUSH_DOMAIN}", push_uri, TEST_PUSH_KEY, expire_ts),
-        "play_hls": signed_live_url(f"https://{TEST_PLAY_DOMAIN}", hls_uri, TEST_PLAY_KEY, expire_ts),
-        "play_flv": signed_live_url(f"https://{TEST_PLAY_DOMAIN}", flv_uri, TEST_PLAY_KEY, expire_ts),
-        "play_rtmp": signed_live_url(f"rtmp://{TEST_PLAY_DOMAIN}", push_uri, TEST_PLAY_KEY, expire_ts),
+        "obs_server": f"rtmp://{push_domain}/{app_name}/",
+        "obs_key": f"{name}?auth_key={aliyun_auth_key(push_uri, push_key, expire_ts)}",
+        "push_rtmp": signed_live_url(f"rtmp://{push_domain}", push_uri, push_key, expire_ts),
+        "play_hls": signed_live_url(f"https://{play_domain}", hls_uri, play_key, expire_ts),
+        "play_flv": signed_live_url(f"https://{play_domain}", flv_uri, play_key, expire_ts),
+        "play_rtmp": signed_live_url(f"rtmp://{play_domain}", push_uri, play_key, expire_ts),
         "hours": TEST_AUTH_HOURS,
         "expire_at": fmt_cst(datetime.fromtimestamp(expire_ts, UTC)),
     }
