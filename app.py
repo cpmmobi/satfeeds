@@ -390,6 +390,19 @@ def apply_short_push(stream: dict[str, Any], still_live: bool) -> None:
     stream["stable_over_1h"] = False
 
 
+def apply_off_match(stream: dict[str, Any], window_seconds: float) -> None:
+    if window_seconds >= 1:
+        return
+    reasons = list(stream.get("issue_reasons") or [])
+    label = "未在比赛期间推流"
+    if label not in reasons:
+        reasons.append(label)
+    stream["severity"] = "critical"
+    stream["issue_reasons"] = reasons
+    stream["issue_reason"] = "；".join(reasons)
+    stream["stable_over_1h"] = False
+
+
 def apply_match_window(streams: list[dict[str, Any]]) -> list[dict[str, Any]]:
     now = datetime.now(UTC)
     for stream in streams:
@@ -469,6 +482,7 @@ def apply_match_window(streams: list[dict[str, Any]]) -> list[dict[str, Any]]:
         stream["severity"] = severity
         stream["issue_reasons"] = reasons
         stream["issue_reason"] = "；".join(reasons)
+        apply_off_match(stream, window_seconds)
         apply_short_push(stream, still_live)
     return streams
 

@@ -474,7 +474,7 @@
     <div id="message"></div>
     <div id="stats" class="stats" hidden></div>
     <div id="tableWrap"></div>
-    <footer>断流只统计开赛前 15 分钟到完赛之间的掉线。完赛时间缺失或明显异常时按开赛后 110 分钟计算。断流超过 3 次，或赛中单次中断超过 1 分钟为异常；整段推流不足 5 分钟（已结束）也记为异常。1–3 次且中断不超过 1 分钟为警告；0 次为稳定。可结算流 = 稳定流 + 警告流，异常流不结算。无开赛时间的比赛无法按赛中统计。</footer>
+    <footer>断流只统计开赛前 15 分钟到完赛之间的掉线。完赛时间缺失或明显异常时按开赛后 110 分钟计算。断流超过 3 次，或赛中单次中断超过 1 分钟为异常；整段推流不足 5 分钟（已结束），或不在比赛期间推流，也记为异常。1–3 次且中断不超过 1 分钟为警告；0 次为稳定。可结算流 = 稳定流 + 警告流，异常流不结算。无开赛时间的比赛无法按赛中统计。</footer>
   </div>
   <div id="modal" class="modal">
     <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
@@ -852,7 +852,7 @@
         });
         const clip = (data.clip_notes || clampNotes || []).filter(Boolean);
         const clipText = clip.length ? ` · ${clip.join("；")}` : "";
-        message.innerHTML = `<div class="hint">筛选范围：${data.start_time} 至 ${data.end_time}${clipText} · 断流超过3次、赛中单次中断超过1分钟、或整段推流不足5分钟记为异常；无完赛或完赛时间异常时按开赛后110分钟</div>`;
+        message.innerHTML = `<div class="hint">筛选范围：${data.start_time} 至 ${data.end_time}${clipText} · 断流超过3次、赛中单次中断超过1分钟、整段推流不足5分钟、或不在比赛期间推流记为异常；无完赛或完赛时间异常时按开赛后110分钟</div>`;
         renderTable();
       } catch (err) {
         message.innerHTML = `<div class="err">${err.message}</div>`;
