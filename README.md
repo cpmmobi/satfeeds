@@ -27,6 +27,13 @@ cp .env.example .env
 - `LIVE_REGION`（默认 `ap-southeast-1`）
 - `STREAM_KEYWORD`（默认 `Satfeeds`）
 - `MATCH_API_URL`（默认 `https://api.sla.homes/lives/getMatches`）
+- `TEST_PUSH_DOMAIN`（测试推流域名，默认 `pushn.fheuuw.com`）
+- `TEST_PUSH_AUTH_KEY`（测试推流鉴权密钥）
+- `TEST_APP_NAME`（默认 `Satfeeds`）
+- `TEST_PLAY_DOMAIN`（测试播放域名，默认 `trial.sla.homes`）
+- `TEST_PLAY_AUTH_KEY`（测试播放鉴权密钥）
+
+测试推流页：`/test`，提供 test1–test5（App `Satfeeds`），不要往正式 App `sla` 推测试流。
 
 查询会打阿里云接口，时间范围较大时可能接近函数超时。Hobby 默认较短，需要更长超时可升级计划或在 `vercel.json` 里调整 `maxDuration`。
 
@@ -40,7 +47,13 @@ cp .env.example .env
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": ["live:DescribeLiveStreamsPublishList"],
+      "Action": [
+        "live:DescribeLiveStreamsPublishList",
+        "live:DescribeLiveStreamsOnlineList",
+        "live:DescribeLiveStreamState",
+        "live:DescribeLiveStreamDetailFrameRateAndBitRateData",
+        "live:DescribeLiveStreamBitRateData"
+      ],
       "Resource": "*"
     }
   ]

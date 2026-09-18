@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Satfeeds 测试推流</title>
+  <style>
+    :root {
+      --bg: #f4f2ee;
+      --paper: #fffdf8;
+      --ink: #1c1917;
+      --muted: #78716c;
+      --line: #e7e0d6;
+      --danger: #b42318;
+      --ok: #3f6212;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.5 "PingFang SC", "Noto Sans SC", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    header {
+      padding: 28px 32px 12px;
+      max-width: 1360px;
+      margin: 0 auto;
+    }
+    h1 { margin: 0 0 6px; font-size: 22px; font-weight: 650; }
+    .sub { color: var(--muted); }
+    .head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+    }
+    a.entry {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      height: 38px;
+      padding: 0 16px;
+      background: var(--ink);
+      color: #fff;
+      text-decoration: none;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+    .panel { max-width: 1360px; margin: 0 auto; padding: 0 32px 40px; }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: end;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      padding: 16px;
+      margin: 16px 0 16px;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    select, input[type="text"].dt {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--ink);
+      padding: 8px 10px;
+      font: inherit;
+      min-width: 140px;
+    }
+    input[type="text"].dt {
+      min-width: 210px;
+      font-variant-numeric: tabular-nums;
+    }
+    button {
+      border: 0;
+      background: var(--ink);
+      color: #fff;
+      padding: 9px 18px;
+      cursor: pointer;
+      font: inherit;
+      height: 38px;
+    }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    button.ghost {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      height: 30px;
+      padding: 0 10px;
+      font-size: 12px;
+    }
+    a.preview {
+      background: #3f6212;
+      color: #fff;
+      border: 1px solid #3f6212;
+      height: 30px;
+      padding: 0 12px;
+      font-size: 12px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+    }
+    a.preview:hover { background: #365314; }
+    .quick {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-left: auto;
+      padding-bottom: 2px;
+    }
+    .quick-label { color: var(--muted); font-size: 12px; }
+    .quick button {
+      background: #fff;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      height: 32px;
+      padding: 0 10px;
+      font-size: 12px;
+    }
+    .quick button.active { background: var(--ink); color: #fff; }
+    .warn, .hint, .err {
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+    }
+    .warn { border-color: #f0b4ae; color: var(--danger); }
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 16px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: 88px 1fr auto;
+      gap: 8px;
+      align-items: start;
+      margin-bottom: 8px;
+    }
+    .row span {
+      color: var(--muted);
+      font-size: 12px;
+      padding-top: 8px;
+    }
+    .url {
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 8px 10px;
+      word-break: break-all;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .metric {
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 12px;
+    }
+    .metric b {
+      display: block;
+      font-size: 18px;
+      font-variant-numeric: tabular-nums;
+      margin-top: 4px;
+    }
+    .metric span { color: var(--muted); font-size: 12px; }
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .pill.on { background: #ecfccb; color: var(--ok); }
+    .pill.off { background: #fee2e2; color: var(--danger); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      text-align: left;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--line);
+      font-variant-numeric: tabular-nums;
+    }
+    th {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+      background: #faf7f2;
+    }
+    .table-wrap {
+      max-height: 420px;
+      overflow: auto;
+      border: 1px solid var(--line);
+    }
+    button.count {
+      background: none;
+      color: inherit;
+      height: auto;
+      padding: 0;
+      font-size: 18px;
+      font-variant-numeric: tabular-nums;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    button.count:hover { opacity: 0.75; }
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(28, 25, 23, 0.45);
+      display: none;
+      align-items: start;
+      justify-content: center;
+      padding: 48px 16px;
+      overflow: auto;
+      z-index: 20;
+    }
+    .modal.open { display: flex; }
+    .dialog {
+      width: min(920px, 100%);
+      background: var(--paper);
+      border: 1px solid var(--line);
+      padding: 20px 22px 16px;
+    }
+    .dialog h2 {
+      margin: 0 0 4px;
+      font-size: 16px;
+      font-weight: 650;
+    }
+    .dialog-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 14px;
+    }
+    .close {
+      background: transparent;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      height: 32px;
+      padding: 0 12px;
+    }
+    footer { color: var(--muted); font-size: 12px; margin-top: 14px; }
+    @media (max-width: 900px) {
+      header, .panel { padding-left: 16px; padding-right: 16px; }
+      .row, .metrics { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="head">
+      <div>
+        <h1>Satfeeds 测试推流</h1>
+        <div class="sub">给服务商测信号用 · 不要推到正式比赛 App</div>
+      </div>
+      <a class="entry" href="/">返回推流记录</a>
+    </div>
+  </header>
+  <div class="panel">
+    <div class="warn">测试请只用本页 <b>Satfeeds / test1–test5</b>。正式比赛流是 <b>sla</b>，测通了会直接进生产，不要往那里推。</div>
+    <div class="toolbar">
+      <label>StreamName
+        <select id="stream">
+          <option value="test1" selected>test1</option>
+          <option value="test2">test2</option>
+          <option value="test3">test3</option>
+          <option value="test4">test4</option>
+          <option value="test5">test5</option>
+        </select>
+      </label>
+      <button type="button" id="refresh">刷新地址</button>
+      <div class="sub" style="padding-bottom:8px">鉴权有效期默认 24 小时，到期后点「刷新地址」。</div>
+    </div>
+    <div id="message"></div>
+    <div id="list"></div>
+
+    <div class="card">
+      <h2>流状态</h2>
+      <div class="toolbar" style="margin:0 0 16px; padding:0; border:0; background:transparent">
+        <label>开始时间
+          <input id="start" class="dt" type="text" autocomplete="off" spellcheck="false" />
+        </label>
+        <label>结束时间
+          <input id="end" class="dt" type="text" autocomplete="off" spellcheck="false" />
+        </label>
+        <button type="button" id="query">查询状态</button>
+        <div class="quick" id="quick">
+          <span class="quick-label">快捷</span>
+          <button type="button" data-range="15m">最近15分钟</button>
+          <button type="button" data-range="1h" class="active">最近1小时</button>
+          <button type="button" data-range="3h">最近3小时</button>
+          <button type="button" data-range="6h">最近6小时</button>
+        </div>
+      </div>
+      <div id="statusMsg"></div>
+      <div id="status"></div>
+    </div>
+    <footer>OBS：服务器填推流服务器，推流密钥填推流码。播放点 HLS / FLV 旁的「预览」。码率查询最多 6 小时，数据大约延迟 3–5 分钟。</footer>
+  </div>
+  <div id="modal" class="modal">
+    <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+      <div class="dialog-head">
+        <div>
+          <h2 id="dialogTitle"></h2>
+          <div class="sub" id="dialogSub"></div>
+        </div>
+        <button type="button" class="close" id="closeModal">关闭</button>
+      </div>
+      <div id="dialogBody"></div>
+    </div>
+  </div>
+  <script>
+    const message = document.getElementById("message");
+    const list = document.getElementById("list");
+    const stream = document.getElementById("stream");
+    const startInput = document.getElementById("start");
+    const endInput = document.getElementById("end");
+    const statusBox = document.getElementById("status");
+    const statusMsg = document.getElementById("statusMsg");
+    const queryBtn = document.getElementById("query");
+    const modal = document.getElementById("modal");
+    const dialogTitle = document.getElementById("dialogTitle");
+    const dialogSub = document.getElementById("dialogSub");
+    const dialogBody = document.getElementById("dialogBody");
+    const PLAYER = "https://www.freetoolsbox.com/tools/web-player?urls=";
+    let lastStatus = null;
+
+    const pad = (n) => String(n).padStart(2, "0");
+    const formatDateTime = (d) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const toApiValue = (d) =>
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    const parseDateTime = (value) => {
+      const text = String(value || "").trim().replace(/\//g, "-").replace("T", " ").replace(/\s+/g, " ");
+      const match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ ]+(\d{1,2})(?::(\d{1,2})(?::(\d{1,2}))?)?)?$/);
+      if (!match) return null;
+      const dt = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4] || 0), Number(match[5] || 0), Number(match[6] || 0));
+      return Number.isNaN(dt.getTime()) ? null : dt;
+    };
+    const dash = (v, suffix = "") => (v === null || v === undefined || v === "" ? "—" : `${v}${suffix}`);
+    const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    }[ch]));
+
+    const closeModal = () => modal.classList.remove("open");
+    const openSessions = (data) => {
+      const sessions = data.sessions || [];
+      dialogTitle.textContent = data.stream_name || stream.value;
+      dialogSub.textContent =
+        `App ${data.app || "Satfeeds"} · ${data.start_time} 至 ${data.end_time} · 推流 ${sessions.length} 次 · 断流 ${data.disconnects ?? Math.max(sessions.length - 1, 0)} 次（相邻两段之间的间隔）`;
+      const rows = sessions.map((d) => `
+        <tr>
+          <td>${d.index}</td>
+          <td>${esc(d.start_time)}</td>
+          <td>${esc(d.end_time)}</td>
+          <td>${esc(d.duration)}</td>
+          <td>${esc(d.gap)}</td>
+          <td>${esc(d.ip)}</td>
+        </tr>
+      `).join("");
+      dialogBody.innerHTML = sessions.length ? `
+        <table>
+          <thead>
+            <tr>
+              <th>段次</th>
+              <th>开始推流</th>
+              <th>结束推流</th>
+              <th>本段时长</th>
+              <th>距上一段间隔</th>
+              <th>推流 IP</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      ` : `<div class="hint">该时段没有推流记录。</div>`;
+      modal.classList.add("open");
+    };
+
+    const copyText = async (text, btn) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        const old = btn.textContent;
+        btn.textContent = "已复制";
+        setTimeout(() => { btn.textContent = old; }, 1200);
+      } catch {
+        message.innerHTML = `<div class="err">复制失败，请手动选中复制</div>`;
+      }
+    };
+
+    const copyRow = (label, value) => `
+      <div class="row">
+        <span>${label}</span>
+        <div class="url">${value}</div>
+        <button type="button" class="ghost" data-copy="${encodeURIComponent(value)}">复制</button>
+      </div>
+    `;
+
+    const playRow = (label, value) => `
+      <div class="row">
+        <span>${label}</span>
+        <div class="url">${value}</div>
+        <a class="preview" href="${PLAYER}${encodeURIComponent(value)}" target="_blank" rel="noopener noreferrer">预览</a>
+      </div>
+    `;
+
+    const setRange = (key) => {
+      const now = new Date();
+      const start = new Date(now);
+      if (key === "15m") start.setMinutes(now.getMinutes() - 15);
+      else if (key === "3h") start.setHours(now.getHours() - 3);
+      else if (key === "6h") start.setHours(now.getHours() - 6);
+      else start.setHours(now.getHours() - 1);
+      startInput.value = formatDateTime(start);
+      endInput.value = formatDateTime(now);
+      document.querySelectorAll("#quick button").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.range === key);
+      });
+    };
+
+    const load = async () => {
+      list.innerHTML = "";
+      message.innerHTML = `<div class="hint">生成中…</div>`;
+      try {
+        const res = await fetch("/api/test-streams?stream=" + encodeURIComponent(stream.value));
+        const data = await res.json();
+        if (!res.ok) {
+          const detail = data.detail;
+          throw new Error(typeof detail === "string" ? detail : "生成失败");
+        }
+        const s = data.stream;
+        message.innerHTML = `<div class="hint">${data.notice} · App：${data.app} · 鉴权有效至 ${data.expire_at}</div>`;
+        list.innerHTML = `
+          <div class="card">
+            <h2>${s.stream_name}</h2>
+            ${copyRow("推流服务器", s.obs_server)}
+            ${copyRow("推流码", s.obs_key)}
+            ${copyRow("完整推流", s.push_rtmp)}
+            ${playRow("HLS 播放", s.play_hls)}
+            ${playRow("FLV 播放", s.play_flv)}
+          </div>
+        `;
+        list.querySelectorAll("button[data-copy]").forEach((btn) => {
+          btn.addEventListener("click", () => copyText(decodeURIComponent(btn.dataset.copy), btn));
+        });
+      } catch (err) {
+        message.innerHTML = `<div class="err">${err.message}</div>`;
+      }
+    };
+
+    const loadStatus = async () => {
+      const startAt = parseDateTime(startInput.value);
+      const endAt = parseDateTime(endInput.value);
+      if (!startAt || !endAt) {
+        statusMsg.innerHTML = `<div class="err">请填写开始和结束时间</div>`;
+        return;
+      }
+      queryBtn.disabled = true;
+      statusMsg.innerHTML = `<div class="hint">查询中…</div>`;
+      statusBox.innerHTML = "";
+      try {
+        const params = new URLSearchParams({
+          stream: stream.value,
+          start: toApiValue(startAt),
+          end: toApiValue(endAt),
+        });
+        const res = await fetch("/api/test-stream-status?" + params.toString());
+        const data = await res.json();
+        if (!res.ok) {
+          const detail = data.detail;
+          throw new Error(typeof detail === "string" ? detail : "查询失败");
+        }
+        const cur = data.current || {};
+        const sum = data.summary || {};
+        const notes = (data.clip_notes || []).join("；");
+        const sessions = data.sessions || [];
+        lastStatus = data;
+        statusMsg.innerHTML = `<div class="hint">时段 ${data.start_time} ~ ${data.end_time}${notes ? " · " + notes : ""}</div>`;
+        const points = data.points || [];
+        const sessionCount = data.session_count ?? sessions.length;
+        const sessionValue = sessionCount
+          ? `<button type="button" class="count" id="openSessions">${sessionCount}</button>`
+          : "0";
+        statusBox.innerHTML = `
+          <div class="metrics">
+            <div class="metric"><span>当前状态</span><b><span class="pill ${data.online ? "on" : "off"}">${data.online ? "在线" : "离线"}</span></b></div>
+            <div class="metric"><span>当前分辨率</span><b>${dash(cur.resolution)}</b></div>
+            <div class="metric"><span>当前码率</span><b>${dash(cur.kbps ?? cur.video_kbps, " kbps")}</b></div>
+            <div class="metric"><span>当前帧率</span><b>${dash(cur.fps, " fps")}</b></div>
+            <div class="metric"><span>推流 IP</span><b>${dash(cur.client_ip)}</b></div>
+          </div>
+          <div class="metrics">
+            <div class="metric"><span>时段平均码率</span><b>${dash(sum.avg_kbps, " kbps")}</b></div>
+            <div class="metric"><span>时段最高码率</span><b>${dash(sum.max_kbps, " kbps")}</b></div>
+            <div class="metric"><span>时段平均帧率</span><b>${dash(sum.avg_fps, " fps")}</b></div>
+            <div class="metric"><span>采样点数</span><b>${dash(sum.samples)}</b></div>
+            <div class="metric"><span>该时段推流次数</span><b>${sessionValue}</b></div>
+          </div>
+          ${cur.publish_time ? `<div class="hint" style="margin-top:-4px">当前推流开始于 ${cur.publish_time}</div>` : ""}
+          ${points.length ? `
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr><th>时间</th><th>码率</th><th>视频码率</th><th>音频码率</th><th>帧率</th><th>分辨率</th></tr>
+                </thead>
+                <tbody>
+                  ${points.map((p) => `
+                    <tr>
+                      <td>${dash(p.time)}</td>
+                      <td>${dash(p.kbps, " kbps")}</td>
+                      <td>${dash(p.video_kbps, " kbps")}</td>
+                      <td>${dash(p.audio_kbps, " kbps")}</td>
+                      <td>${dash(p.fps, " fps")}</td>
+                      <td>${dash(p.resolution)}</td>
+                    </tr>
+                  `).join("")}
+                </tbody>
+              </table>
+            </div>
+          ` : `<div class="hint">该时段没有码率/帧率采样。流离线、刚推上（延迟 3–5 分钟）或尚未推流时会这样。</div>`}
+          <div class="sub" style="margin-top:10px">${data.resolution_note || ""}</div>
+        `;
+        const openBtn = document.getElementById("openSessions");
+        if (openBtn) openBtn.addEventListener("click", () => openSessions(lastStatus));
+      } catch (err) {
+        statusMsg.innerHTML = `<div class="err">${err.message}</div>`;
+      } finally {
+        queryBtn.disabled = false;
+      }
+    };
+
+    document.getElementById("closeModal").addEventListener("click", closeModal);
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) closeModal();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeModal();
+    });
+
+    document.getElementById("refresh").addEventListener("click", load);
+    stream.addEventListener("change", () => { load(); loadStatus(); });
+    queryBtn.addEventListener("click", loadStatus);
+    document.getElementById("quick").addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-range]");
+      if (!btn) return;
+      setRange(btn.dataset.range);
+      loadStatus();
+    });
+
+    setRange("1h");
+    load();
+    loadStatus();
+  </script>
+</body>
+</html>

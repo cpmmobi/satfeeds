@@ -27,12 +27,30 @@
       max-width: 1360px;
       margin: 0 auto;
     }
+    .head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+    }
     h1 {
       margin: 0 0 6px;
       font-size: 22px;
       font-weight: 650;
     }
-    .sub { color: var(--muted); }
+    a.entry {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      height: 38px;
+      padding: 0 16px;
+      background: var(--ink);
+      color: #fff;
+      text-decoration: none;
+      font-size: 14px;
+      white-space: nowrap;
+    }
+    a.entry:hover { opacity: 0.88; }
     .form-note {
       margin: -8px 0 16px;
       color: var(--muted);
@@ -361,13 +379,19 @@
     @media (max-width: 900px) {
       .stats { grid-template-columns: 1fr 1fr; }
       header, .panel { padding-left: 16px; padding-right: 16px; }
+      .head { flex-direction: column; }
     }
   </style>
 </head>
 <body>
   <header>
-    <h1>Satfeeds 推流记录</h1>
-    <div class="sub">按开始推流时间筛选 · 一条流一行 · 时间均为北京时间 · 实际可查近 20 天</div>
+    <div class="head">
+      <div>
+        <h1>Satfeeds 推流记录</h1>
+        <div class="sub">按开始推流时间筛选 · 一条流一行 · 时间均为北京时间 · 实际可查近 20 天</div>
+      </div>
+      <a class="entry" href="/test">测试推流地址</a>
+    </div>
   </header>
   <div class="panel">
     <form id="form">
