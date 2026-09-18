@@ -373,6 +373,55 @@
       padding: 0 12px;
     }
     footer { color: var(--muted); font-size: 12px; margin-top: 14px; }
+    .live-box {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-left: 4px solid #3f6212;
+      padding: 16px;
+      margin: 16px 0 20px;
+    }
+    .live-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .live-head h2 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 650;
+    }
+    .live-meta { color: var(--muted); font-size: 12px; }
+    .pill {
+      display: inline-block;
+      padding: 1px 7px;
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .pill.on { background: #ecfccb; color: var(--ok); }
+    .pill.off { background: #efe8de; color: var(--muted); }
+    #liveRefresh { height: 32px; padding: 0 12px; font-size: 13px; }
+    .preview-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    a.preview {
+      background: #3f6212;
+      color: #fff;
+      border: 1px solid #3f6212;
+      height: 26px;
+      padding: 0 10px;
+      font-size: 12px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      white-space: nowrap;
+    }
+    a.preview:hover { background: #365314; }
     @media (max-width: 1100px) {
       .stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
@@ -394,6 +443,16 @@
     </div>
   </header>
   <div class="panel">
+    <div class="live-box">
+      <div class="live-head">
+        <div>
+          <h2>当前在线</h2>
+          <div class="live-meta" id="liveMeta">正在查询名称包含 Satfeeds 的在线流…</div>
+        </div>
+        <button type="button" id="liveRefresh">刷新</button>
+      </div>
+      <div id="liveBox"></div>
+    </div>
     <form id="form">
       <label>开始时间
         <input id="start" class="dt" type="text" required autocomplete="off" spellcheck="false" placeholder="2026-09-18 00:00:00" />
@@ -415,7 +474,7 @@
     <div id="message"></div>
     <div id="stats" class="stats" hidden></div>
     <div id="tableWrap"></div>
-    <footer>断流只统计开赛前 15 分钟到完赛之间的掉线。完赛时间缺失或明显异常时按开赛后 110 分钟计算。断流超过 3 次，或赛中单次中断超过 1 分钟为异常；1–3 次且中断不超过 1 分钟为警告；0 次为未断流。可结算流 = 稳定流 + 警告流，异常流不结算。无开赛时间的比赛无法按赛中统计。</footer>
+    <footer>断流只统计开赛前 15 分钟到完赛之间的掉线。完赛时间缺失或明显异常时按开赛后 110 分钟计算。断流超过 3 次，或赛中单次中断超过 1 分钟为异常；整段推流不足 5 分钟（已结束）也记为异常。1–3 次且中断不超过 1 分钟为警告；0 次为稳定。可结算流 = 稳定流 + 警告流，异常流不结算。无开赛时间的比赛无法按赛中统计。</footer>
   </div>
   <div id="modal" class="modal">
     <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
@@ -576,7 +635,7 @@
     };
 
     const rowSeverity = (s) => s.severity || "";
-    const severityLabel = { critical: "异常", warn: "警告", ok: "未断流" };
+    const severityLabel = { critical: "异常", warn: "警告", ok: "稳定" };
     const shotUrl = (id) => `https://slaimages.oss-ap-southeast-1.aliyuncs.com/sla/${encodeURIComponent(id)}.jpg`;
     const pair = (label, value, extra = "") =>
       `<div class="pair"><span>${label}</span><b>${esc(value || "—")}${extra}</b></div>`;
@@ -793,7 +852,7 @@
         });
         const clip = (data.clip_notes || clampNotes || []).filter(Boolean);
         const clipText = clip.length ? ` · ${clip.join("；")}` : "";
-        message.innerHTML = `<div class="hint">筛选范围：${data.start_time} 至 ${data.end_time}${clipText} · 断流超过3次或赛中单次中断超过1分钟记为异常；无完赛或完赛时间异常时按开赛后110分钟</div>`;
+        message.innerHTML = `<div class="hint">筛选范围：${data.start_time} 至 ${data.end_time}${clipText} · 断流超过3次、赛中单次中断超过1分钟、或整段推流不足5分钟记为异常；无完赛或完赛时间异常时按开赛后110分钟</div>`;
         renderTable();
       } catch (err) {
         message.innerHTML = `<div class="err">${err.message}</div>`;
@@ -802,6 +861,103 @@
         submit.textContent = "查询";
       }
     });
+
+    const liveBox = document.getElementById("liveBox");
+    const liveMeta = document.getElementById("liveMeta");
+    const liveRefresh = document.getElementById("liveRefresh");
+    const dash = (v, suffix = "") => (v === null || v === undefined || v === "" ? "—" : `${v}${suffix}`);
+    const PLAYER = "https://www.freetoolsbox.com/tools/web-player?urls=";
+    const previewLink = (url, label) =>
+      url
+        ? `<a class="preview" href="${PLAYER}${encodeURIComponent(url)}" target="_blank" rel="noopener noreferrer">${label}</a>`
+        : "";
+
+    const renderLive = (data) => {
+      const streams = data.streams || [];
+      liveMeta.innerHTML = streams.length
+        ? `<span class="pill on">在线 ${streams.length} 路</span> · 名称含 ${esc(data.keyword || "Satfeeds")} · ${esc(data.queried_at)}`
+        : `<span class="pill off">在线 0 路</span> · 名称含 ${esc(data.keyword || "Satfeeds")} · ${esc(data.queried_at)}`;
+      if (!streams.length) {
+        liveBox.innerHTML = `<div class="hint" style="margin:0">当前没有 Satfeeds 在线流。服务商推上之后点刷新，出现在这里就说明已经收到。</div>`;
+        return;
+      }
+      liveBox.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>截图</th>
+              <th>比赛</th>
+              <th>开始推流</th>
+              <th>已推时长</th>
+              <th>分辨率</th>
+              <th>帧率</th>
+              <th>码率</th>
+              <th>推流 IP</th>
+              <th>预览</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${streams.map((s) => {
+              const thumb = shotUrl(s.stream_id);
+              return `
+                <tr class="sev-ok">
+                  <td class="col-shot">
+                    <button type="button" class="shot" data-shot="${esc(thumb)}">
+                      <img src="${esc(thumb)}" alt="" loading="lazy" />
+                    </button>
+                  </td>
+                  <td class="col-match">
+                    <div class="match-name">${s.sport ? `<span class="sport">${esc(s.sport)}</span>` : ""}<span>${esc(s.match_name || "未知比赛")}</span></div>
+                    <div class="id">${esc(s.stream_id)}</div>
+                  </td>
+                  <td>${esc(s.publish_time || "—")}</td>
+                  <td>${esc(s.duration || "—")}</td>
+                  <td>${esc(s.resolution || "—")}</td>
+                  <td>${dash(s.fps, " fps")}</td>
+                  <td>${dash(s.video_kbps, " kbps")}</td>
+                  <td class="ip">${esc(s.client_ip || "—")}</td>
+                  <td><div class="preview-cell">${previewLink(s.play_hls, "HLS")}${previewLink(s.play_flv, "FLV")}</div></td>
+                </tr>
+              `;
+            }).join("")}
+          </tbody>
+        </table>
+      `;
+      liveBox.querySelectorAll("img").forEach((img) => {
+        img.addEventListener("error", () => {
+          const btn = img.closest(".shot");
+          if (btn) btn.classList.add("empty");
+        });
+      });
+      liveBox.querySelectorAll("button.shot").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          if (btn.classList.contains("empty")) return;
+          openShot(btn.dataset.shot);
+        });
+      });
+    };
+
+    const loadLive = async () => {
+      liveRefresh.disabled = true;
+      try {
+        const res = await fetch("/api/online-streams");
+        const data = await res.json();
+        if (!res.ok) {
+          const detail = data.detail;
+          throw new Error(typeof detail === "string" ? detail : "查询失败");
+        }
+        renderLive(data);
+      } catch (err) {
+        liveMeta.textContent = "查询失败";
+        liveBox.innerHTML = `<div class="err" style="margin:0">${esc(err.message)}</div>`;
+      } finally {
+        liveRefresh.disabled = false;
+      }
+    };
+
+    liveRefresh.addEventListener("click", loadLive);
+    loadLive();
+    setInterval(loadLive, 20000);
   </script>
 </body>
 </html>

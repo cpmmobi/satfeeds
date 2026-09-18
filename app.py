@@ -48,6 +48,7 @@ DEFAULT_MATCH_DURATION = timedelta(minutes=110)
 MAX_MATCH_DURATION = timedelta(hours=4)
 LONG_INTERRUPT_SECONDS = 60
 CRITICAL_DISCONNECTS = 3
+MIN_PUSH_SECONDS = 300
 TEST_PUSH_DOMAIN = os.getenv("TEST_PUSH_DOMAIN", "pushn.fheuuw.com").strip()
 TEST_PUSH_KEY = os.getenv("TEST_PUSH_AUTH_KEY", "").strip()
 TEST_APP_NAME = os.getenv("TEST_APP_NAME", "Satfeeds").strip() or "Satfeeds"
@@ -329,6 +330,7 @@ def aggregate(sessions: list[dict[str, Any]], start: datetime, end: datetime) ->
                 "disconnects": max(len(items) - 1, 0),
                 "publish_ip": "、".join(ips),
                 "sessions": len(items),
+                "push_seconds": int(total_seconds),
                 "effective_seconds": int(total_seconds),
                 "stable_over_1h": False,
                 "details": details,
@@ -372,6 +374,22 @@ def classify_stream(disconnects: int | None, max_interrupt: float) -> tuple[str,
     return "ok", []
 
 
+def apply_short_push(stream: dict[str, Any], still_live: bool) -> None:
+    if still_live:
+        return
+    seconds = int(stream.get("push_seconds") or 0)
+    if seconds >= MIN_PUSH_SECONDS:
+        return
+    reasons = list(stream.get("issue_reasons") or [])
+    label = f"推流仅{fmt_duration(seconds)}"
+    if label not in reasons:
+        reasons.append(label)
+    stream["severity"] = "critical"
+    stream["issue_reasons"] = reasons
+    stream["issue_reason"] = "；".join(reasons)
+    stream["stable_over_1h"] = False
+
+
 def apply_match_window(streams: list[dict[str, Any]]) -> list[dict[str, Any]]:
     now = datetime.now(UTC)
     for stream in streams:
@@ -379,6 +397,7 @@ def apply_match_window(streams: list[dict[str, Any]]) -> list[dict[str, Any]]:
         match_start = stream.pop("_match_start", None)
         match_end = stream.pop("_match_end", None)
         details = stream.get("details") or []
+        still_live = any(item.get("stop_time") is None for item in raw)
         if not match_start:
             stream["disconnects"] = None
             stream["stable_over_1h"] = False
@@ -388,6 +407,7 @@ def apply_match_window(streams: list[dict[str, Any]]) -> list[dict[str, Any]]:
             stream["severity"] = ""
             stream["issue_reasons"] = []
             stream["issue_reason"] = ""
+            apply_short_push(stream, still_live)
             continue
 
         assumed = match_end is None
@@ -449,6 +469,7 @@ def apply_match_window(streams: list[dict[str, Any]]) -> list[dict[str, Any]]:
         stream["severity"] = severity
         stream["issue_reasons"] = reasons
         stream["issue_reason"] = "；".join(reasons)
+        apply_short_push(stream, still_live)
     return streams
 
 
@@ -923,6 +944,91 @@ def test_stream_status(
         "points": points,
         "metric_source": source,
         "resolution_note": "阿里云历史码率接口不含分辨率，分辨率取当前在线流；离线时无法读取。",
+    }
+
+
+@app.get("/api/online-streams")
+def online_streams() -> dict[str, Any]:
+    client = live_client()
+    records: list[dict[str, Any]] = []
+    page = 1
+    total_page = 1
+    now = datetime.now(UTC)
+    while page <= total_page:
+        resp = aliyun_invoke(
+            client,
+            "describe_live_streams_online_list",
+            DescribeLiveStreamsOnlineListRequest(
+                domain_name=DOMAIN,
+                app_name=APP_NAME or None,
+                stream_name=KEYWORD,
+                query_type="fuzzy",
+                stream_type="raw",
+                page_num=page,
+                page_size=PAGE_SIZE,
+                region_id=REGION,
+            ),
+            "在线流查询",
+        )
+        body = resp.body
+        total_page = int(body.total_page or 1)
+        infos = []
+        if body.online_info and body.online_info.live_stream_online_info:
+            infos = body.online_info.live_stream_online_info
+        for item in infos:
+            name = item.stream_name or ""
+            if KEYWORD.lower() not in name.lower():
+                continue
+            pub = parse_iso(item.publish_time)
+            duration = (now - pub).total_seconds() if pub else None
+            app = item.app_name or APP_NAME
+            play_key = os.getenv("TEST_PLAY_AUTH_KEY", "").strip() or TEST_PLAY_KEY
+            play_domain = os.getenv("TEST_PLAY_DOMAIN", TEST_PLAY_DOMAIN).strip() or TEST_PLAY_DOMAIN
+            expire_ts = int(time.time()) + TEST_AUTH_HOURS * 3600
+            play_hls = None
+            play_flv = None
+            if play_key and play_domain and app and name:
+                play_hls = signed_live_url(f"https://{play_domain}", f"/{app}/{name}.m3u8", play_key, expire_ts)
+                play_flv = signed_live_url(f"https://{play_domain}", f"/{app}/{name}.flv", play_key, expire_ts)
+            records.append(
+                {
+                    "stream_id": name,
+                    "app": app,
+                    "publish_time": fmt_cst(pub),
+                    "duration": fmt_duration(duration),
+                    "client_ip": item.client_ip or "",
+                    "video_kbps": as_kbps(item.video_data_rate),
+                    "audio_kbps": as_kbps(item.audio_data_rate),
+                    "fps": item.frame_rate,
+                    "width": item.width,
+                    "height": item.height,
+                    "resolution": fmt_resolution(item.width, item.height),
+                    "play_hls": play_hls,
+                    "play_flv": play_flv,
+                    "_sort": pub.timestamp() if pub else 0,
+                }
+            )
+        page += 1
+        if page <= total_page:
+            time.sleep(PAGE_INTERVAL_SEC)
+
+    records.sort(key=lambda x: x["_sort"], reverse=True)
+    for row in records:
+        row.pop("_sort", None)
+    attach_matches(records)
+    for row in records:
+        row.pop("_match_start", None)
+        row.pop("_match_end", None)
+        row.pop("_raw", None)
+    return {
+        "ok": True,
+        "timezone": "Asia/Shanghai",
+        "keyword": KEYWORD,
+        "domain": DOMAIN,
+        "app": APP_NAME,
+        "queried_at": fmt_cst(now),
+        "count": len(records),
+        "streams": records,
     }
 
 
