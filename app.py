@@ -403,14 +403,21 @@ def apply_off_match(stream: dict[str, Any], window_seconds: float) -> None:
     stream["stable_over_1h"] = False
 
 
-def apply_match_window(streams: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def apply_match_window(streams: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
     now = datetime.now(UTC)
+    kept: list[dict[str, Any]] = []
+    skipped_unfinished = 0
     for stream in streams:
         raw = stream.pop("_raw", []) or []
         match_start = stream.pop("_match_start", None)
         match_end = stream.pop("_match_end", None)
         details = stream.get("details") or []
         still_live = any(item.get("stop_time") is None for item in raw)
+        if match_start:
+            expected_end = match_end or (match_start + DEFAULT_MATCH_DURATION)
+            if expected_end > now:
+                skipped_unfinished += 1
+                continue
         if not match_start:
             stream["disconnects"] = None
             stream["stable_over_1h"] = False
@@ -421,6 +428,7 @@ def apply_match_window(streams: list[dict[str, Any]]) -> list[dict[str, Any]]:
             stream["issue_reasons"] = []
             stream["issue_reason"] = ""
             apply_short_push(stream, still_live)
+            kept.append(stream)
             continue
 
         assumed = match_end is None
@@ -484,7 +492,8 @@ def apply_match_window(streams: list[dict[str, Any]]) -> list[dict[str, Any]]:
         stream["issue_reason"] = "；".join(reasons)
         apply_off_match(stream, window_seconds)
         apply_short_push(stream, still_live)
-    return streams
+        kept.append(stream)
+    return kept, skipped_unfinished
 
 
 def clamp_query_window(start_dt: datetime, end_dt: datetime) -> tuple[datetime, datetime, list[str]]:
@@ -1061,7 +1070,11 @@ def list_streams(
     start_dt, end_dt, clip_notes = clamp_query_window(start_dt, end_dt)
 
     sessions = fetch_sessions(start_dt, end_dt)
-    streams = apply_match_window(attach_matches(aggregate(sessions, start_dt, end_dt)))
+    streams, skipped_unfinished = apply_match_window(
+        attach_matches(aggregate(sessions, start_dt, end_dt))
+    )
+    if skipped_unfinished:
+        clip_notes.append(f"已排除尚未到预期完赛时间的比赛 {skipped_unfinished} 场")
 
     def bucket(stream: dict[str, Any]) -> str | None:
         return stream.get("severity") or None

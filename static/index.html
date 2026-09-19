@@ -852,7 +852,7 @@
         });
         const clip = (data.clip_notes || clampNotes || []).filter(Boolean);
         const clipText = clip.length ? ` · ${clip.join("；")}` : "";
-        message.innerHTML = `<div class="hint">筛选范围：${data.start_time} 至 ${data.end_time}${clipText} · 断流超过3次、赛中单次中断超过1分钟、整段推流不足5分钟、或不在比赛期间推流记为异常；无完赛或完赛时间异常时按开赛后110分钟</div>`;
+        message.innerHTML = `<div class="hint">筛选范围：${data.start_time} 至 ${data.end_time}${clipText} · 正在进行或尚未到预期完赛时间的比赛不计入下方列表和统计 · 断流超过3次、赛中单次中断超过1分钟、整段推流不足5分钟、或不在比赛期间推流记为异常；无完赛或完赛时间异常时按开赛后110分钟</div>`;
         renderTable();
       } catch (err) {
         message.innerHTML = `<div class="err">${err.message}</div>`;
